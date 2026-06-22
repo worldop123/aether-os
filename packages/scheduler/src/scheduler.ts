@@ -141,6 +141,34 @@ export class ScheduledTask implements IScheduledTask {
       (this as any).metadata = updates.metadata;
     }
   }
+
+  /**
+   * 从持久化数据恢复任务实例
+   * 重建完整的运行时状态（包括 status、runCount、lastRunAt 等）
+   */
+  static fromPersisted(data: IScheduledTask): ScheduledTask {
+    const task = new ScheduledTask({
+      agentId: data.agentId,
+      name: data.name,
+      description: data.description,
+      taskType: data.taskType,
+      cron: data.cron,
+      payload: data.payload,
+      enabled: data.enabled,
+      maxRuns: data.maxRuns,
+      metadata: data.metadata,
+    });
+
+    // 恢复持久化的运行时状态
+    (task as any).id = data.id;
+    (task as any).createdAt = data.createdAt;
+    task.setStatus(data.status as TaskStatus);
+    (task as any)._lastRunAt = data.lastRunAt;
+    (task as any)._nextRunAt = data.nextRunAt;
+    (task as any)._runCount = data.runCount;
+
+    return task;
+  }
 }
 
 /**
@@ -224,72 +252,184 @@ export interface TaskExecutionResult {
 }
 
 /**
- * 简单的 Cron 解析器（MVP 简化版）
- * 只支持基本的分钟级调度
+ * Cron 字段范围定义
  */
-function parseCron(cron: string): { minute: number; hour: number } | null {
-  const parts = cron.trim().split(/\s+/);
-  if (parts.length < 2) return null;
+const CRON_RANGES = {
+  minute: { min: 0, max: 59 },
+  hour: { min: 0, max: 23 },
+  dayOfMonth: { min: 1, max: 31 },
+  month: { min: 1, max: 12 },
+  dayOfWeek: { min: 0, max: 6 }, // 0=Sunday
+} as const;
 
-  const minute = parts[0];
-  const hour = parts[1];
+type CronField = keyof typeof CRON_RANGES;
 
-  // 简化：只支持数字和 *
-  const minuteVal = minute === '*' ? -1 : parseInt(minute, 10);
-  const hourVal = hour === '*' ? -1 : parseInt(hour, 10);
+/**
+ * 解析单个 cron 字段，返回该字段匹配的所有值集合
+ * 支持: 星号 / 数字 / 范围 a-b / 列表 a,b,c / 步长 star/n 和 a-b/n
+ */
+function parseCronField(field: string, fieldType: CronField): Set<number> {
+  const range = CRON_RANGES[fieldType];
+  const result = new Set<number>();
 
-  if (isNaN(minuteVal) || isNaN(hourVal)) return null;
+  if (field === '*') {
+    for (let i = range.min; i <= range.max; i++) result.add(i);
+    return result;
+  }
 
-  return { minute: minuteVal, hour: hourVal };
+  // 处理逗号分隔的列表
+  for (const part of field.split(',')) {
+    // 处理步长 a-b/n 或 star/n 或 a/n
+    const stepMatch = part.match(/^(.+?)\/(\d+)$/);
+    let base = part;
+    let step = 1;
+
+    if (stepMatch) {
+      base = stepMatch[1];
+      step = parseInt(stepMatch[2], 10);
+      if (isNaN(step) || step < 1) {
+        throw new SchedulerError(`无效的 cron 步长: ${stepMatch[2]}`);
+      }
+    }
+
+    let start: number;
+    let end: number;
+
+    if (base === '*') {
+      start = range.min;
+      end = range.max;
+    } else if (base.includes('-')) {
+      const [s, e] = base.split('-');
+      start = parseInt(s, 10);
+      end = parseInt(e, 10);
+      if (isNaN(start) || isNaN(end)) {
+        throw new SchedulerError(`无效的 cron 范围: ${base}`);
+      }
+    } else {
+      start = parseInt(base, 10);
+      if (isNaN(start)) {
+        throw new SchedulerError(`无效的 cron 值: ${base}`);
+      }
+      // 单个值，无步长时直接添加
+      if (!stepMatch) {
+        if (start < range.min || start > range.max) {
+          throw new SchedulerError(`cron 值 ${start} 超出 ${fieldType} 范围 [${range.min}-${range.max}]`);
+        }
+        result.add(start);
+        continue;
+      }
+      end = range.max;
+    }
+
+    if (start < range.min || end > range.max || start > end) {
+      throw new SchedulerError(`cron 范围 ${base} 对 ${fieldType} 无效`);
+    }
+
+    for (let i = start; i <= end; i += step) {
+      result.add(i);
+    }
+  }
+
+  return result;
 }
 
 /**
- * 计算下次执行时间（简化版）
+ * 完整的 Cron 解析器
+ * 支持标准 5 字段格式：minute hour day-of-month month day-of-week
+ * 支持 * / 数字 / 范围 / 列表 / 步长
+ * @returns 解析后的字段值集合，或 null 表示格式错误
  */
-function calculateNextRun(cron: string, from: Timestamp): Timestamp | null {
+export function parseCron(cron: string): {
+  minute: Set<number>;
+  hour: Set<number>;
+  dayOfMonth: Set<number>;
+  month: Set<number>;
+  dayOfWeek: Set<number>;
+} | null {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return null;
+
+  try {
+    return {
+      minute: parseCronField(parts[0], 'minute'),
+      hour: parseCronField(parts[1], 'hour'),
+      dayOfMonth: parseCronField(parts[2], 'dayOfMonth'),
+      month: parseCronField(parts[3], 'month'),
+      dayOfWeek: parseCronField(parts[4], 'dayOfWeek'),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 计算下次执行时间
+ * 支持完整的 5 字段 cron 语法
+ */
+export function calculateNextRun(cron: string, from: Timestamp): Timestamp | null {
   const parsed = parseCron(cron);
   if (!parsed) return null;
 
+  // 从下一分钟开始检查，避免立即重复执行
   const date = new Date(from);
   date.setSeconds(0, 0);
+  date.setMinutes(date.getMinutes() + 1);
 
-  // 简化实现：每分钟检查一次，如果匹配就执行
-  // 对于 MVP 来说，我们用更简单的方式：如果是 * * * * * 就每分钟执行
-  // 如果是具体时间，就计算到下一次匹配的时间
+  // 最多检查 4 年（考虑闰年），避免无限循环
+  const maxIterations = 60 * 24 * 366 * 4;
 
-  if (parsed.minute === -1 && parsed.hour === -1) {
-    // 每分钟执行
-    date.setMinutes(date.getMinutes() + 1);
-    return date.getTime();
-  }
+  for (let i = 0; i < maxIterations; i++) {
+    const minute = date.getMinutes();
+    const hour = date.getHours();
+    const dayOfMonth = date.getDate();
+    const month = date.getMonth() + 1; // JS month 是 0-11
+    const dayOfWeek = date.getDay(); // 0=Sunday
 
-  if (parsed.minute !== -1 && parsed.hour === -1) {
-    // 每小时的第 N 分钟执行
-    const targetMinute = parsed.minute;
-    if (date.getMinutes() < targetMinute) {
-      date.setMinutes(targetMinute);
+    // 标准 cron 规则：dayOfMonth 和 dayOfWeek 同时指定时用 OR 关系
+    const dayOfMonthMatch = parsed.dayOfMonth.has(dayOfMonth);
+    const dayOfWeekMatch = parsed.dayOfWeek.has(dayOfWeek);
+
+    // 判断 dayOfMonth 和 dayOfWeek 是否都是通配符（即未限制）
+    const dayOfMonthRestricted = parsed.dayOfMonth.size !== 31;
+    const dayOfWeekRestricted = parsed.dayOfWeek.size !== 7;
+
+    let dayMatch: boolean;
+    if (dayOfMonthRestricted && dayOfWeekRestricted) {
+      // 两者都限制，用 OR
+      dayMatch = dayOfMonthMatch || dayOfWeekMatch;
     } else {
-      date.setHours(date.getHours() + 1);
-      date.setMinutes(targetMinute);
+      // 至少一个是 *，用 AND（实际等同于只检查限制的那个）
+      dayMatch = dayOfMonthMatch && dayOfWeekMatch;
     }
-    return date.getTime();
-  }
-
-  if (parsed.minute !== -1 && parsed.hour !== -1) {
-    // 每天的指定时间执行
-    const targetHour = parsed.hour;
-    const targetMinute = parsed.minute;
 
     if (
-      date.getHours() < targetHour ||
-      (date.getHours() === targetHour && date.getMinutes() < targetMinute)
+      parsed.minute.has(minute) &&
+      parsed.hour.has(hour) &&
+      parsed.month.has(month) &&
+      dayMatch
     ) {
-      date.setHours(targetHour, targetMinute);
-    } else {
-      date.setDate(date.getDate() + 1);
-      date.setHours(targetHour, targetMinute);
+      return date.getTime();
     }
-    return date.getTime();
+
+    // 智能跳转：如果不匹配月份，直接跳到下个月
+    if (!parsed.month.has(month)) {
+      date.setMonth(date.getMonth() + 1, 1);
+      date.setHours(0, 0, 0, 0);
+      continue;
+    }
+    // 如果不匹配日，跳到下一天
+    if (!dayMatch) {
+      date.setDate(date.getDate() + 1);
+      date.setHours(0, 0, 0, 0);
+      continue;
+    }
+    // 如果不匹配小时，跳到下一小时
+    if (!parsed.hour.has(hour)) {
+      date.setHours(date.getHours() + 1, 0, 0, 0);
+      continue;
+    }
+    // 如果不匹配分钟，跳到下一分钟
+    date.setMinutes(date.getMinutes() + 1, 0, 0);
   }
 
   return null;
@@ -305,12 +445,22 @@ export class TaskScheduler implements ITaskScheduler {
   private executionHistory: Map<ID, TaskExecutionResult[]> = new Map();
   private _running: boolean = false;
   private taskHandlers: Map<TaskType, (task: IScheduledTask) => Promise<unknown>> = new Map();
+  private persistence: IPersistence | null = null;
 
   constructor() {
     // 注册默认的自定义任务处理器
     this.registerTaskHandler('custom', async (task) => {
       return { type: 'custom', payload: task.payload };
     });
+  }
+
+  /**
+   * 设置持久化存储
+   * 设置后，任务的创建、取消、执行状态变更都会同步到持久化存储
+   * 在 start() 时会自动从持久化存储加载已有任务
+   */
+  setPersistence(persistence: IPersistence): void {
+    this.persistence = persistence;
   }
 
   /**
@@ -340,6 +490,11 @@ export class TaskScheduler implements ITaskScheduler {
     // 如果调度器正在运行且任务已启用，设置定时器
     if (this._running && task.enabled) {
       this.scheduleTask(task);
+    }
+
+    // 持久化任务
+    if (this.persistence) {
+      await this.persistence.saveScheduledTask(task);
     }
 
     globalEventBus.emit('scheduler.task_created', task.id, task.agentId, now());
@@ -421,6 +576,11 @@ export class TaskScheduler implements ITaskScheduler {
           this.scheduleTask(task);
         }
       }
+
+      // 持久化更新任务状态
+      if (this.persistence) {
+        await this.persistence.saveScheduledTask(task);
+      }
     } catch (error) {
       const endedAt = now();
       const duration = endedAt - startedAt;
@@ -450,6 +610,11 @@ export class TaskScheduler implements ITaskScheduler {
           this.scheduleTask(task);
         }
       }
+
+      // 持久化更新任务状态
+      if (this.persistence) {
+        await this.persistence.saveScheduledTask(task);
+      }
     }
   }
 
@@ -469,6 +634,11 @@ export class TaskScheduler implements ITaskScheduler {
 
     task.setStatus(TaskStatus.CANCELLED);
     task.setEnabled(false);
+
+    // 持久化更新任务状态
+    if (this.persistence) {
+      await this.persistence.saveScheduledTask(task);
+    }
 
     globalEventBus.emit('scheduler.task_cancelled', taskId, task.agentId, now());
 
@@ -509,10 +679,20 @@ export class TaskScheduler implements ITaskScheduler {
       history.push(executionResult);
       this.executionHistory.set(taskId, history);
 
+      // 持久化更新任务状态
+      if (this.persistence) {
+        await this.persistence.saveScheduledTask(task);
+      }
+
       return executionResult;
     } catch (error) {
       const endedAt = now();
       const duration = endedAt - startedAt;
+
+      // 持久化更新任务状态
+      if (this.persistence) {
+        await this.persistence.saveScheduledTask(task);
+      }
 
       return {
         taskId,
@@ -640,9 +820,23 @@ export class TaskScheduler implements ITaskScheduler {
 
   /**
    * 启动调度器
+   * 如果设置了持久化存储，会先从持久化存储加载所有任务到内存
    */
   async start(): Promise<void> {
     if (this._running) return;
+
+    // 如果设置了持久化存储，加载所有任务到内存
+    if (this.persistence) {
+      const persistedTasks = await this.persistence.loadScheduledTasks();
+      for (const data of persistedTasks) {
+        // 仅加载内存中尚不存在的任务，避免覆盖运行时已修改的状态
+        if (!this.tasks.has(data.id)) {
+          const task = ScheduledTask.fromPersisted(data);
+          this.tasks.set(task.id, task);
+          this.executionHistory.set(task.id, []);
+        }
+      }
+    }
 
     this._running = true;
 

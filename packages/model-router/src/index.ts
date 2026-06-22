@@ -4,7 +4,10 @@
  * 包含模型路由、预算控制和模型提供商接口定义
  */
 
-export { MockModelProvider, ModelRouter, BudgetController } from './model-router';
+export { MockModelProvider, ModelRouter, BudgetController } from './model-router.js';
+export { OpenAIProvider } from './providers/openai.js';
+export { AnthropicProvider } from './providers/anthropic.js';
+export { OllamaProvider } from './providers/ollama.js';
 export type {
   TokenUsage,
   ChatMessage,
@@ -19,4 +22,4 @@ export type {
   IModelRouter,
   IBudgetController,
   RoutingStrategy,
-} from './model-router';
+} from './model-router.js';

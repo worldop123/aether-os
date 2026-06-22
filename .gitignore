@@ -52,3 +52,11 @@ temp/
 
 # TypeScript
 *.tsbuildinfo
+
+# Aether OS 数据目录
+.aether/
+aether-data/
+
+# 配置文件（可能含 API key）
+config.local.json
+*.local.json

@@ -4,7 +4,9 @@
  * 包含 MCP 服务器管理和工具调用的接口定义
  */
 
-export { McpServerStatus, McpTool, McpServer, McpManager } from './mcp';
+export { McpServerStatus, McpTool, McpServer, McpManager } from './mcp.js';
+export { StdioMcpClient, RemoteMcpTool } from './stdio-client.js';
+export type { McpToolInfo } from './stdio-client.js';
 export type {
   McpToolParameter,
   IMcpTool,
@@ -14,4 +16,4 @@ export type {
   IMcpManager,
   McpToolCallEvent,
   McpToolResultEvent,
-} from './mcp';
+} from './mcp.js';

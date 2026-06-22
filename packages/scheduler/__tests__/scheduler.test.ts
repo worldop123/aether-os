@@ -3,6 +3,8 @@ import {
   TaskStatus,
   TaskScheduler,
   SqlitePersistence,
+  parseCron,
+  calculateNextRun,
 } from '../src/scheduler';
 import { globalEventBus } from '@aether/shared';
 
@@ -535,6 +537,174 @@ describe('SqlitePersistence 测试', () => {
       expect(usage.inputTokens).toBe(300);
       expect(usage.outputTokens).toBe(150);
       expect(usage.totalTokens).toBe(450);
+    });
+  });
+});
+
+describe('Cron 解析器测试', () => {
+  describe('parseCron', () => {
+    it('应该解析星号通配符', () => {
+      const parsed = parseCron('* * * * *');
+      expect(parsed).not.toBeNull();
+      expect(parsed!.minute.size).toBe(60);
+      expect(parsed!.hour.size).toBe(24);
+      expect(parsed!.dayOfMonth.size).toBe(31);
+      expect(parsed!.month.size).toBe(12);
+      expect(parsed!.dayOfWeek.size).toBe(7);
+    });
+
+    it('应该解析单个数字', () => {
+      const parsed = parseCron('30 14 * * *');
+      expect(parsed).not.toBeNull();
+      expect(parsed!.minute.has(30)).toBe(true);
+      expect(parsed!.hour.has(14)).toBe(true);
+    });
+
+    it('应该解析范围 a-b', () => {
+      const parsed = parseCron('0 9-17 * * *');
+      expect(parsed).not.toBeNull();
+      expect(parsed!.hour.size).toBe(9);
+      for (let h = 9; h <= 17; h++) {
+        expect(parsed!.hour.has(h)).toBe(true);
+      }
+    });
+
+    it('应该解析列表 a,b,c', () => {
+      const parsed = parseCron('0 0,12 * * *');
+      expect(parsed).not.toBeNull();
+      expect(parsed!.hour.size).toBe(2);
+      expect(parsed!.hour.has(0)).toBe(true);
+      expect(parsed!.hour.has(12)).toBe(true);
+    });
+
+    it('应该解析步长 star/n', () => {
+      const parsed = parseCron('*/15 * * * *');
+      expect(parsed).not.toBeNull();
+      expect(parsed!.minute.size).toBe(4);
+      expect(parsed!.minute.has(0)).toBe(true);
+      expect(parsed!.minute.has(15)).toBe(true);
+      expect(parsed!.minute.has(30)).toBe(true);
+      expect(parsed!.minute.has(45)).toBe(true);
+    });
+
+    it('应该解析范围步长 a-b/n', () => {
+      const parsed = parseCron('0 1-23/2 * * *');
+      expect(parsed).not.toBeNull();
+      expect(parsed!.hour.size).toBe(12);
+      expect(parsed!.hour.has(1)).toBe(true);
+      expect(parsed!.hour.has(3)).toBe(true);
+      expect(parsed!.hour.has(23)).toBe(true);
+    });
+
+    it('应该解析星期字段', () => {
+      const parsed = parseCron('0 0 * * 1-5');
+      expect(parsed).not.toBeNull();
+      expect(parsed!.dayOfWeek.size).toBe(5);
+      expect(parsed!.dayOfWeek.has(1)).toBe(true);
+      expect(parsed!.dayOfWeek.has(5)).toBe(true);
+      expect(parsed!.dayOfWeek.has(0)).toBe(false);
+    });
+
+    it('应该解析月份字段', () => {
+      const parsed = parseCron('0 0 1 1,4,7,10 *');
+      expect(parsed).not.toBeNull();
+      expect(parsed!.month.size).toBe(4);
+      expect(parsed!.month.has(1)).toBe(true);
+      expect(parsed!.month.has(4)).toBe(true);
+    });
+
+    it('应该拒绝字段数不正确的表达式', () => {
+      expect(parseCron('* * *')).toBeNull();
+      expect(parseCron('* * * * * *')).toBeNull();
+      expect(parseCron('')).toBeNull();
+    });
+
+    it('应该拒绝超出范围的值', () => {
+      expect(parseCron('60 * * * *')).toBeNull();
+      expect(parseCron('* 24 * * *')).toBeNull();
+      expect(parseCron('* * 32 * *')).toBeNull();
+      expect(parseCron('* * * 13 *')).toBeNull();
+      expect(parseCron('* * * * 7')).toBeNull();
+    });
+
+    it('应该拒绝无效语法', () => {
+      expect(parseCron('abc * * * *')).toBeNull();
+      expect(parseCron('* 1- * * *')).toBeNull();
+      expect(parseCron('*/0 * * * *')).toBeNull();
+    });
+  });
+
+  describe('calculateNextRun', () => {
+    it('每分钟执行应该返回下一分钟', () => {
+      const from = new Date(2026, 0, 1, 12, 30, 0).getTime();
+      const next = calculateNextRun('* * * * *', from);
+      expect(next).not.toBeNull();
+      const nextDate = new Date(next!);
+      expect(nextDate.getMinutes()).toBe(31);
+      expect(nextDate.getHours()).toBe(12);
+    });
+
+    it('每小时第 N 分钟应该返回本小时或下小时的指定分钟', () => {
+      const from = new Date(2026, 0, 1, 12, 15, 0).getTime();
+      const next = calculateNextRun('30 * * * *', from);
+      expect(next).not.toBeNull();
+      const nextDate = new Date(next!);
+      expect(nextDate.getMinutes()).toBe(30);
+      expect(nextDate.getHours()).toBe(12);
+    });
+
+    it('每天指定时间应该返回今天或明天的指定时间', () => {
+      const from = new Date(2026, 0, 1, 8, 0, 0).getTime();
+      const next = calculateNextRun('0 9 * * *', from);
+      expect(next).not.toBeNull();
+      const nextDate = new Date(next!);
+      expect(nextDate.getHours()).toBe(9);
+      expect(nextDate.getMinutes()).toBe(0);
+    });
+
+    it('每周一执行应该正确计算', () => {
+      // 2026-01-01 是周四
+      const from = new Date(2026, 0, 1, 12, 0, 0).getTime();
+      const next = calculateNextRun('0 0 * * 1', from);
+      expect(next).not.toBeNull();
+      const nextDate = new Date(next!);
+      // 下一个周一是 2026-01-05
+      expect(nextDate.getDate()).toBe(5);
+      expect(nextDate.getDay()).toBe(1);
+    });
+
+    it('每月 1 号执行应该正确计算', () => {
+      const from = new Date(2026, 0, 15, 12, 0, 0).getTime();
+      const next = calculateNextRun('0 0 1 * *', from);
+      expect(next).not.toBeNull();
+      const nextDate = new Date(next!);
+      expect(nextDate.getDate()).toBe(1);
+      expect(nextDate.getMonth()).toBe(1); // 2 月
+    });
+
+    it('每 15 分钟执行应该正确计算', () => {
+      const from = new Date(2026, 0, 1, 12, 7, 0).getTime();
+      const next = calculateNextRun('*/15 * * * *', from);
+      expect(next).not.toBeNull();
+      const nextDate = new Date(next!);
+      expect(nextDate.getMinutes()).toBe(15);
+    });
+
+    it('工作日执行应该跳过周末', () => {
+      // 2026-01-02 是周五 12:00
+      const from = new Date(2026, 0, 2, 12, 0, 0).getTime();
+      const next = calculateNextRun('0 9 * * 1-5', from);
+      expect(next).not.toBeNull();
+      const nextDate = new Date(next!);
+      // 下一个工作日 9 点是 2026-01-05 周一
+      expect(nextDate.getDate()).toBe(5);
+      expect(nextDate.getHours()).toBe(9);
+    });
+
+    it('无效表达式应该返回 null', () => {
+      const from = Date.now();
+      expect(calculateNextRun('invalid', from)).toBeNull();
+      expect(calculateNextRun('* * *', from)).toBeNull();
     });
   });
 });

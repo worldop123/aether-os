@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aether OS - 管理界面</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 顶部导航栏 -->
+    <header class="navbar">
+      <div class="navbar-brand">
+        <span class="logo">Aether OS</span>
+      </div>
+      <div class="navbar-status">
+        <span id="systemStatus" class="status-badge status-running">在线</span>
+        <span id="uptime" class="uptime">运行时间: --</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <!-- 左侧菜单 -->
+      <nav class="sidebar">
+        <ul class="nav-menu">
+          <li><a href="#dashboard" class="nav-link active" data-page="dashboard">Dashboard</a></li>
+          <li><a href="#agents" class="nav-link" data-page="agents">Agents</a></li>
+          <li><a href="#memories" class="nav-link" data-page="memories">Memories</a></li>
+          <li><a href="#budget" class="nav-link" data-page="budget">Budget</a></li>
+          <li><a href="#mcp" class="nav-link" data-page="mcp">MCP</a></li>
+          <li><a href="#schedules" class="nav-link" data-page="schedules">Schedules</a></li>
+        </ul>
+      </nav>
+
+      <!-- 主内容区 -->
+      <main class="main-content" id="mainContent">
+        <!-- 内容由 app.js 动态渲染 -->
+      </main>
+    </div>
+
+    <!-- 事件日志浮窗 -->
+    <div class="event-log" id="eventLog">
+      <div class="event-log-header">
+        <span>实时事件</span>
+        <button class="btn-icon" id="toggleEventLog" title="折叠/展开">—</button>
+      </div>
+      <div class="event-log-body" id="eventLogBody"></div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

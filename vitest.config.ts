@@ -13,6 +13,10 @@ export default defineConfig({
       '@aether/mcp': resolve(__dirname, 'packages/mcp/src'),
       '@aether/scheduler': resolve(__dirname, 'packages/scheduler/src'),
       '@aether/cli': resolve(__dirname, 'packages/cli/src'),
+      '@aether/a2a': resolve(__dirname, 'packages/a2a/src'),
+      '@aether/sandbox': resolve(__dirname, 'packages/sandbox/src'),
+      '@aether/workflow': resolve(__dirname, 'packages/workflow/src'),
+      '@aether/web': resolve(__dirname, 'packages/web/src'),
     },
   },
   test: {

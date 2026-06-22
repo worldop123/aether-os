@@ -9,7 +9,9 @@
       "@aether/model-router": ["packages/model-router/src"],
       "@aether/mcp": ["packages/mcp/src"],
       "@aether/scheduler": ["packages/scheduler/src"],
-      "@aether/cli": ["packages/cli/src"]
+      "@aether/cli": ["packages/cli/src"],
+      "@aether/workflow": ["packages/workflow/src"],
+      "@aether/web": ["packages/web/src"]
     }
   },
   "include": ["packages/*/src/**/*"],

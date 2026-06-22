@@ -4,7 +4,10 @@
  * 包含短期记忆和长期记忆（向量记忆）的接口定义
  */
 
-export { MessageRole, ShortTermMemory, LongTermMemory, MemoryManager } from './memory';
+export { MessageRole, ShortTermMemory, LongTermMemory, MemoryManager } from './memory.js';
+export { SqliteLongTermMemory } from './sqlite-long-term.js';
+export { VectorMemoryManager } from './vector-memory-manager.js';
+export { cosineSimilarity, vectorNorm, dotProduct, normalizeVector, hashEmbedding } from './vector.js';
 export type {
   MemoryMessage,
   IShortTermMemory,
@@ -12,4 +15,5 @@ export type {
   VectorSearchResult,
   ILongTermMemory,
   IMemoryManager,
-} from './memory';
+  EmbeddingFn,
+} from './memory.js';

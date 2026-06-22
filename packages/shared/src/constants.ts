@@ -32,6 +32,22 @@ export const EVENTS = Object.freeze({
   SCHEDULER_TASK_CANCELLED: 'scheduler.task_cancelled',
   SCHEDULER_TASK_EXECUTED: 'scheduler.task_executed',
   SCHEDULER_TASK_ERROR: 'scheduler.task_error',
+  // A2A 通信事件
+  A2A_AGENT_REGISTERED: 'a2a.agent_registered',
+  A2A_AGENT_UNREGISTERED: 'a2a.agent_unregistered',
+  A2A_MESSAGE_SENT: 'a2a.message_sent',
+  A2A_MESSAGE_RECEIVED: 'a2a.message_received',
+  // 沙箱事件
+  SANDBOX_PERMISSION_CHECKED: 'sandbox.permission_checked',
+  SANDBOX_AUDIT_LOGGED: 'sandbox.audit_logged',
+  SANDBOX_SKILL_EXECUTED: 'sandbox.skill_executed',
+  SANDBOX_SKILL_BLOCKED: 'sandbox.skill_blocked',
+  // 工作流事件
+  WORKFLOW_STARTED: 'workflow.started',
+  WORKFLOW_NODE_STARTED: 'workflow.node_started',
+  WORKFLOW_NODE_COMPLETED: 'workflow.node_completed',
+  WORKFLOW_COMPLETED: 'workflow.completed',
+  WORKFLOW_ERROR: 'workflow.error',
 } as const);
 
 /** Agent 状态枚举 */

@@ -15,17 +15,17 @@ export {
   SchedulerError,
   ConfigurationError,
   NotFoundError,
-} from './errors';
+} from './errors.js';
 
 // 常量
-export { EVENTS, AGENT_STATUS, MESSAGE_ROLES, DEFAULTS, DB_TABLES } from './constants';
+export { EVENTS, AGENT_STATUS, MESSAGE_ROLES, DEFAULTS, DB_TABLES } from './constants.js';
 
 // 事件总线
-export { EventBus, globalEventBus } from './event-bus';
-export type { GlobalEvents } from './event-bus';
+export { EventBus, globalEventBus } from './event-bus.js';
+export type { GlobalEvents } from './event-bus.js';
 
 // 工具类型和函数
-export { generateId, now, sleep, withTimeout, retry } from './utils';
+export { generateId, now, sleep, withTimeout, retry } from './utils.js';
 export type {
   ID,
   Timestamp,
@@ -35,4 +35,4 @@ export type {
   SortParams,
   BaseConfig,
   AsyncResult,
-} from './utils';
+} from './utils.js';

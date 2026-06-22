@@ -24,7 +24,8 @@
     "@aether/memory": "workspace:*",
     "@aether/model-router": "workspace:*",
     "@aether/mcp": "workspace:*",
-    "@aether/scheduler": "workspace:*"
+    "@aether/scheduler": "workspace:*",
+    "@aether/web": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

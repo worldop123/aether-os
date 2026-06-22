@@ -6,6 +6,23 @@ import { MemoryManager } from '@aether/memory';
 import { BudgetController, ModelRouter, MockModelProvider } from '@aether/model-router';
 import { McpManager } from '@aether/mcp';
 import { TaskScheduler } from '@aether/scheduler';
+import {
+  colorize,
+  success as successText,
+  error as errorText,
+  warn as warnText,
+  title as titleText,
+  dim as dimText,
+} from './colors.js';
+import { Spinner } from './progress.js';
+import {
+  loadConfig,
+  saveConfig,
+  createDefaultConfig,
+  getConfigPath,
+  type UserConfig,
+} from './config.js';
+import { InteractiveSession } from './interactive.js';
 
 /**
  * CLI 命令参数
@@ -235,6 +252,7 @@ function parseValue(value: string): string | number | boolean {
  */
 export class CliApp {
   private config: CliConfig;
+  private userConfig: UserConfig;
   private processManager: ProcessManager;
   private memoryManager: MemoryManager;
   private budgetController: BudgetController;
@@ -242,6 +260,7 @@ export class CliApp {
   private mcpManager: McpManager;
   private taskScheduler: TaskScheduler;
   private commands: CliCommand[] = [];
+  private initialized = false;
 
   constructor() {
     this.config = {
@@ -251,6 +270,7 @@ export class CliApp {
       verbose: false,
       dataDir: './data',
     };
+    this.userConfig = createDefaultConfig();
 
     // 初始化核心组件
     this.processManager = new ProcessManager();
@@ -268,6 +288,39 @@ export class CliApp {
   }
 
   /**
+   * 异步初始化：加载用户配置
+   *
+   * 在 run() 开始时调用，避免破坏同步构造函数。
+   */
+  async init(): Promise<void> {
+    if (this.initialized) {
+      return;
+    }
+    try {
+      this.userConfig = await loadConfig(this.config.configPath);
+    } catch {
+      // 加载失败时使用默认配置，不阻断 CLI
+      this.userConfig = createDefaultConfig();
+    }
+    // 用用户配置覆盖默认值（CLI 标志稍后会覆盖用户配置）
+    this.config.outputFormat = this.userConfig.outputFormat;
+    this.config.color = this.userConfig.color;
+    this.config.quiet = this.userConfig.quiet;
+    this.config.verbose = this.userConfig.verbose;
+    if (this.userConfig.dataDir) {
+      this.config.dataDir = this.userConfig.dataDir;
+    }
+    this.initialized = true;
+  }
+
+  /**
+   * 是否启用彩色输出（根据 config.color 和 TTY 检测）
+   */
+  private get colorsEnabled(): boolean {
+    return this.config.color && process.stdout.isTTY === true;
+  }
+
+  /**
    * 注册所有命令
    */
   private registerCommands(): void {
@@ -278,6 +331,8 @@ export class CliApp {
       this.createMcpCommand(),
       this.createScheduleCommand(),
       this.createChatCommand(),
+      this.createConfigCommand(),
+      this.createWebCommand(),
     ];
   }
 
@@ -343,8 +398,18 @@ export class CliApp {
           ],
           execute: async (args) => {
             const id = args.id as string;
-            await this.processManager.startAgent(id);
-            this.output(`Agent ${id} 已启动`);
+            if (this.config.quiet) {
+              await this.processManager.startAgent(id);
+              return;
+            }
+            const spinner = new Spinner(`启动 Agent ${id}...`, this.colorsEnabled);
+            spinner.start();
+            try {
+              await this.processManager.startAgent(id);
+              spinner.stop(successText(`Agent ${id} 已启动`, this.colorsEnabled));
+            } catch (err) {
+              spinner.fail(err instanceof Error ? err.message : String(err));
+            }
           },
         },
         {
@@ -739,16 +804,33 @@ export class CliApp {
       description: '与 Agent 对话',
       options: [
         { name: 'agent', alias: 'a', description: 'Agent ID', type: 'string', default: 'default' },
-        { name: 'message', alias: 'm', description: '消息内容', type: 'string', required: true },
+        { name: 'message', alias: 'm', description: '消息内容', type: 'string' },
+        { name: 'interactive', alias: 'i', description: '进入交互模式 (REPL)', type: 'boolean' },
       ],
       execute: async (args) => {
         const agentId = args.agent as string;
-        const message = args.message as string;
+        const interactive = args.interactive === true || args.i === true;
 
         // 确保 Agent 存在
         let agent = this.processManager.getAgent(agentId);
         if (!agent) {
           agent = await this.processManager.createAgent(agentId);
+        }
+
+        if (interactive) {
+          const session = new InteractiveSession({
+            onMessage: async (input: string) => agent.sendMessage(input),
+            welcome: `与 Agent ${agentId} 对话（输入 /exit 退出）`,
+            prompt: `${agentId}> `,
+          });
+          await session.start();
+          return;
+        }
+
+        const message = args.message as string | undefined;
+        if (!message) {
+          this.output(errorText('错误: 缺少 --message 参数，或使用 --interactive 进入交互模式', this.colorsEnabled));
+          return;
         }
 
         const response = await agent.sendMessage(message);
@@ -758,9 +840,151 @@ export class CliApp {
   }
 
   /**
+   * 创建 config 命令
+   */
+  private createConfigCommand(): CliCommand {
+    return {
+      name: 'config',
+      description: '管理用户配置',
+      subcommands: [
+        {
+          name: 'list',
+          description: '列出所有配置',
+          options: [
+            { name: 'format', alias: 'f', description: '输出格式', type: 'string', default: 'json' },
+          ],
+          execute: async (args) => {
+            this.output(this.userConfig, args.format as OutputFormat);
+          },
+        },
+        {
+          name: 'get',
+          description: '获取配置项',
+          options: [
+            { name: 'key', alias: 'k', description: '配置键 (支持点号分隔)', type: 'string', required: true },
+          ],
+          execute: async (args) => {
+            const key = args.key as string;
+            const value = this.getConfigValue(key);
+            if (value === undefined) {
+              this.output(warnText(`配置项 ${key} 不存在`, this.colorsEnabled));
+              return;
+            }
+            this.output(value);
+          },
+        },
+        {
+          name: 'set',
+          description: '设置配置项',
+          options: [
+            { name: 'key', alias: 'k', description: '配置键 (支持点号分隔)', type: 'string', required: true },
+            { name: 'value', alias: 'v', description: '配置值', type: 'string', required: true },
+          ],
+          execute: async (args) => {
+            const key = args.key as string;
+            const rawValue = args.value as string;
+            const parsedValue = parseValue(rawValue);
+            this.setConfigValue(key, parsedValue);
+            try {
+              await saveConfig(this.userConfig, this.config.configPath);
+              this.output(successText(`配置 ${key} 已设置为 ${rawValue}`, this.colorsEnabled));
+            } catch (err) {
+              this.output(errorText(`保存配置失败: ${err instanceof Error ? err.message : String(err)}`, this.colorsEnabled));
+            }
+          },
+        },
+        {
+          name: 'path',
+          description: '显示配置文件路径',
+          execute: async () => {
+            this.output(getConfigPath(this.config.configPath));
+          },
+        },
+      ],
+    };
+  }
+
+  /**
+   * 创建 web 命令
+   */
+  private createWebCommand(): CliCommand {
+    return {
+      name: 'web',
+      description: '启动 Web 管理界面',
+      options: [
+        { name: 'port', alias: 'p', description: '端口号', type: 'number', default: 3000 },
+        { name: 'host', description: '主机地址', type: 'string', default: 'localhost' },
+      ],
+      execute: async (args) => {
+        const port = args.port as number;
+        const host = args.host as string;
+
+        const { WebServer } = await import('@aether/web');
+        const server = new WebServer({
+          port,
+          host,
+          processManager: this.processManager,
+          memoryManager: this.memoryManager,
+          modelRouter: this.modelRouter,
+          budgetController: this.budgetController,
+          mcpManager: this.mcpManager,
+          taskScheduler: this.taskScheduler,
+        });
+
+        await server.start();
+        this.output(successText(`Web 管理界面已启动: ${server.url}`, this.colorsEnabled));
+        this.output(dimText('按 Ctrl+C 停止服务器', this.colorsEnabled));
+
+        // 优雅关闭
+        const shutdown = async (): Promise<void> => {
+          this.output('\n正在关闭服务器...');
+          await server.stop();
+          process.exit(0);
+        };
+        process.on('SIGINT', shutdown);
+        process.on('SIGTERM', shutdown);
+      },
+    };
+  }
+
+  /**
+   * 获取配置值（支持点号分隔的嵌套键）
+   */
+  private getConfigValue(key: string): unknown {
+    const parts = key.split('.');
+    let current: unknown = this.userConfig;
+    for (const part of parts) {
+      if (current === null || current === undefined || typeof current !== 'object') {
+        return undefined;
+      }
+      current = (current as Record<string, unknown>)[part];
+    }
+    return current;
+  }
+
+  /**
+   * 设置配置值（支持点号分隔的嵌套键）
+   */
+  private setConfigValue(key: string, value: unknown): void {
+    const parts = key.split('.');
+    let current: Record<string, unknown> = this.userConfig as unknown as Record<string, unknown>;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (current[part] === undefined || current[part] === null || typeof current[part] !== 'object') {
+        current[part] = {};
+      }
+      current = current[part] as Record<string, unknown>;
+    }
+    current[parts[parts.length - 1]] = value;
+  }
+
+  /**
    * 运行 CLI
    */
   async run(argv: string[]): Promise<void> {
+    // 异步初始化（加载用户配置）
+    await this.init();
+
     const args = parseArgs(argv);
 
     // 修复全局布尔选项（防止它们错误地消耗后面的位置参数）
@@ -883,7 +1107,7 @@ export class CliApp {
    */
   private printTable(data: Record<string, unknown>[]): void {
     if (data.length === 0) {
-      console.log('(空)');
+      console.log(dimText('(空)', this.colorsEnabled));
       return;
     }
 
@@ -895,10 +1119,10 @@ export class CliApp {
       return Math.max(key.length, maxValueLen);
     });
 
-    // 打印表头
-    const header = keys.map((k, i) => k.padEnd(colWidths[i])).join('  ');
+    // 打印表头（青色加粗）
+    const header = keys.map((k, i) => colorize(k.padEnd(colWidths[i]), 'cyan', this.colorsEnabled)).join('  ');
     console.log(header);
-    console.log('-'.repeat(header.length));
+    console.log(dimText('-'.repeat(keys.reduce((sum, w, i) => sum + colWidths[i] + (i > 0 ? 2 : 0), 0)), this.colorsEnabled));
 
     // 打印数据
     for (const row of data) {
@@ -911,45 +1135,45 @@ export class CliApp {
    * 打印帮助信息
    */
   private printHelp(): void {
-    console.log('Aether OS CLI - 下一代 AI Agent 操作系统');
+    console.log(titleText('Aether OS CLI - 下一代 AI Agent 操作系统', this.colorsEnabled));
     console.log('');
-    console.log('用法: aether <command> [options]');
+    console.log(`用法: ${colorize('aether <command> [options]', 'bold', this.colorsEnabled)}`);
     console.log('');
-    console.log('命令:');
+    console.log(colorize('命令:', 'cyan', this.colorsEnabled));
     for (const cmd of this.commands) {
-      console.log(`  ${cmd.name.padEnd(12)} ${cmd.description}`);
+      console.log(`  ${colorize(cmd.name.padEnd(12), 'green', this.colorsEnabled)} ${dimText(cmd.description, this.colorsEnabled)}`);
     }
     console.log('');
-    console.log('选项:');
-    console.log('  --help, -h     显示帮助信息');
-    console.log('  --version, -v  显示版本号');
-    console.log('  --format, -f   输出格式 (text/json/table)');
-    console.log('  --quiet, -q    静默模式');
-    console.log('  --verbose, -V  详细模式');
+    console.log(colorize('选项:', 'cyan', this.colorsEnabled));
+    console.log(`  ${colorize('--help, -h'.padEnd(15), 'yellow', this.colorsEnabled)} 显示帮助信息`);
+    console.log(`  ${colorize('--version, -v'.padEnd(15), 'yellow', this.colorsEnabled)} 显示版本号`);
+    console.log(`  ${colorize('--format, -f'.padEnd(15), 'yellow', this.colorsEnabled)} 输出格式 (text/json/table)`);
+    console.log(`  ${colorize('--quiet, -q'.padEnd(15), 'yellow', this.colorsEnabled)} 静默模式`);
+    console.log(`  ${colorize('--verbose, -V'.padEnd(15), 'yellow', this.colorsEnabled)} 详细模式`);
     console.log('');
-    console.log('使用 "aether <command> --help" 查看命令详情');
+    console.log(dimText('使用 "aether <command> --help" 查看命令详情', this.colorsEnabled));
   }
 
   /**
    * 打印命令帮助
    */
   private printCommandHelp(command: CliCommand): void {
-    console.log(`${command.name} - ${command.description}`);
+    console.log(`${titleText(command.name, this.colorsEnabled)} - ${dimText(command.description, this.colorsEnabled)}`);
     console.log('');
 
     if (command.subcommands) {
-      console.log('子命令:');
+      console.log(colorize('子命令:', 'cyan', this.colorsEnabled));
       for (const sub of command.subcommands) {
-        console.log(`  ${sub.name.padEnd(12)} ${sub.description}`);
+        console.log(`  ${colorize(sub.name.padEnd(12), 'green', this.colorsEnabled)} ${dimText(sub.description, this.colorsEnabled)}`);
       }
       console.log('');
     }
 
     if (command.options) {
-      console.log('选项:');
+      console.log(colorize('选项:', 'cyan', this.colorsEnabled));
       for (const opt of command.options) {
         const alias = opt.alias ? `, -${opt.alias}` : '';
-        console.log(`  --${opt.name}${alias.padEnd(6)} ${opt.description}`);
+        console.log(`  ${colorize(`--${opt.name}${alias}`.padEnd(18), 'yellow', this.colorsEnabled)} ${dimText(opt.description, this.colorsEnabled)}`);
       }
     }
   }

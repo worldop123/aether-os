@@ -1,6 +1,13 @@
 import type { ID, Timestamp, Metadata } from '@aether/shared';
 import { generateId, now, DEFAULTS, globalEventBus } from '@aether/shared';
 import { MemoryError } from '@aether/shared';
+import { cosineSimilarity } from './vector.js';
+
+/**
+ * Embedding 函数类型
+ * 接收文本，返回其向量嵌入
+ */
+export type EmbeddingFn = (text: string) => Promise<number[]>;
 
 /**
  * 消息角色
@@ -211,10 +218,20 @@ export interface VectorSearchResult {
 
 /**
  * 长期记忆实现类（内存版本）
- * MVP 阶段使用内存存储，关键词匹配代替向量检索
+ * 支持向量检索（注入 embeddingFn 时）和关键词匹配（降级方案）
  */
 export class LongTermMemory implements ILongTermMemory {
   private memories: Map<ID, LongTermMemoryItem> = new Map();
+  private embeddingFn?: EmbeddingFn;
+
+  /**
+   * @param options 可选配置
+   *   - embeddingFn: 文本到向量的嵌入函数。注入后 store() 会自动生成 embedding，
+   *                  search() 会用余弦相似度排序；未注入时降级为关键词匹配。
+   */
+  constructor(options?: { embeddingFn?: EmbeddingFn }) {
+    this.embeddingFn = options?.embeddingFn;
+  }
 
   /**
    * 存储一条长期记忆
@@ -225,17 +242,31 @@ export class LongTermMemory implements ILongTermMemory {
     options?: {
       type?: LongTermMemoryItem['type'];
       importance?: number;
+      embedding?: number[];
       metadata?: Metadata;
       tags?: string[];
     }
   ): Promise<LongTermMemoryItem> {
     const nowTimestamp = now();
+
+    // 优先使用调用方显式传入的 embedding；否则若注入了 embeddingFn，则自动生成
+    let embedding = options?.embedding;
+    if (embedding === undefined && this.embeddingFn) {
+      try {
+        embedding = await this.embeddingFn(content);
+      } catch {
+        // embedding 生成失败时不阻断存储，降级为无向量记忆
+        embedding = undefined;
+      }
+    }
+
     const item: LongTermMemoryItem = {
       id: generateId('mem'),
       agentId,
       content,
       type: options?.type || 'fact',
       importance: options?.importance ?? 0.5,
+      embedding,
       accessCount: 0,
       createdAt: nowTimestamp,
       lastAccessedAt: nowTimestamp,
@@ -251,7 +282,9 @@ export class LongTermMemory implements ILongTermMemory {
   }
 
   /**
-   * 搜索相关记忆（关键词匹配，MVP 简化版向量搜索）
+   * 搜索相关记忆
+   * 如果注入了 embeddingFn 且记忆有 embedding，用余弦相似度检索；
+   * 否则降级为关键词匹配
    */
   async search(
     agentId: ID,
@@ -270,13 +303,37 @@ export class LongTermMemory implements ILongTermMemory {
       (m) => m.agentId === agentId && (!options?.type || m.type === options.type)
     );
 
-    // 计算相似度（基于关键词匹配的简单算法）
+    // 如果注入了 embeddingFn，为 query 生成 embedding 以支持向量检索
+    let queryEmbedding: number[] | undefined;
+    if (this.embeddingFn) {
+      try {
+        queryEmbedding = await this.embeddingFn(query);
+      } catch {
+        queryEmbedding = undefined;
+      }
+    }
+
+    // 是否启用向量检索：需要 query embedding 且至少有一条记忆有 embedding
+    const useVectorSearch =
+      !!queryEmbedding && agentMemories.some((m) => m.embedding && m.embedding.length > 0);
+
     const queryLower = query.toLowerCase();
     const results: VectorSearchResult[] = [];
 
     for (const item of agentMemories) {
-      const contentLower = item.content.toLowerCase();
-      const similarity = this.calculateSimilarity(queryLower, contentLower, item.importance);
+      let similarity: number;
+
+      if (useVectorSearch && item.embedding && item.embedding.length > 0) {
+        // 向量检索：余弦相似度
+        similarity = cosineSimilarity(queryEmbedding!, item.embedding);
+      } else {
+        // 降级为关键词匹配
+        similarity = this.calculateSimilarity(
+          queryLower,
+          item.content.toLowerCase(),
+          item.importance
+        );
+      }
 
       if (similarity >= threshold) {
         results.push({ item, similarity });
@@ -460,6 +517,7 @@ export interface ILongTermMemory {
     options?: {
       type?: LongTermMemoryItem['type'];
       importance?: number;
+      embedding?: number[];
       metadata?: Metadata;
       tags?: string[];
     }

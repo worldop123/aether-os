@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "paths": {
+      "@aether/shared": ["../shared/src"],
+      "@aether/core": ["../core/src"],
+      "@aether/memory": ["../memory/src"],
+      "@aether/model-router": ["../model-router/src"],
+      "@aether/mcp": ["../mcp/src"],
+      "@aether/scheduler": ["../scheduler/src"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}

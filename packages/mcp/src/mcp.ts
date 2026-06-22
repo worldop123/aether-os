@@ -1,6 +1,111 @@
 import type { ID, Timestamp, Metadata } from '@aether/shared';
 import { now, globalEventBus } from '@aether/shared';
 import { McpError } from '@aether/shared';
+import { StdioMcpClient, RemoteMcpTool } from './stdio-client.js';
+
+/**
+ * 安全的数学表达式求值器（递归下降解析器）
+ * 支持 + - * / % () 和数字，不使用 eval，杜绝代码注入风险
+ *
+ * 文法：
+ *   expression := term (('+' | '-') term)*
+ *   term       := factor (('*' | '/' | '%') factor)*
+ *   factor     := number | '(' expression ')' | ('-' | '+') factor
+ */
+function safeEvalMath(expression: string): number {
+  let pos = 0;
+  const src = expression;
+
+  const skipSpaces = (): void => {
+    while (pos < src.length && /\s/.test(src[pos])) pos++;
+  };
+
+  const parseNumber = (): number => {
+    skipSpaces();
+    let num = '';
+    while (pos < src.length && /[\d.]/.test(src[pos])) {
+      num += src[pos];
+      pos++;
+    }
+    if (num === '') {
+      throw new Error(`位置 ${pos} 处期望数字`);
+    }
+    const value = parseFloat(num);
+    if (Number.isNaN(value)) {
+      throw new Error(`无效数字: ${num}`);
+    }
+    return value;
+  };
+
+  const parseFactor = (): number => {
+    skipSpaces();
+    if (pos >= src.length) {
+      throw new Error('表达式不完整');
+    }
+    const ch = src[pos];
+    if (ch === '(') {
+      pos++; // 跳过 '('
+      const value = parseExpression();
+      skipSpaces();
+      if (src[pos] !== ')') {
+        throw new Error(`位置 ${pos} 处期望 ')'`);
+      }
+      pos++; // 跳过 ')'
+      return value;
+    }
+    if (ch === '-') {
+      pos++;
+      return -parseFactor();
+    }
+    if (ch === '+') {
+      pos++;
+      return parseFactor();
+    }
+    return parseNumber();
+  };
+
+  const parseTerm = (): number => {
+    let value = parseFactor();
+    skipSpaces();
+    while (pos < src.length && (src[pos] === '*' || src[pos] === '/' || src[pos] === '%')) {
+      const op = src[pos];
+      pos++;
+      const right = parseFactor();
+      if (op === '*') value = value * right;
+      else if (op === '/') {
+        if (right === 0) throw new Error('除零错误');
+        value = value / right;
+      } else {
+        if (right === 0) throw new Error('模零错误');
+        value = value % right;
+      }
+      skipSpaces();
+    }
+    return value;
+  };
+
+  const parseExpression = (): number => {
+    let value = parseTerm();
+    skipSpaces();
+    while (pos < src.length && (src[pos] === '+' || src[pos] === '-')) {
+      const op = src[pos];
+      pos++;
+      const right = parseTerm();
+      if (op === '+') value = value + right;
+      else value = value - right;
+      skipSpaces();
+    }
+    return value;
+  };
+
+  skipSpaces();
+  const result = parseExpression();
+  skipSpaces();
+  if (pos < src.length) {
+    throw new Error(`位置 ${pos} 处存在未识别字符 '${src[pos]}'`);
+  }
+  return result;
+}
 
 /**
  * MCP 工具参数定义
@@ -198,13 +303,14 @@ export enum McpServerStatus {
 
 /**
  * MCP 服务器实现类（本地工具服务器）
- * MVP 阶段使用本地实现，不需要真实的 stdio 连接
+ * 支持 local 类型（本地工具）和 stdio 类型（通过子进程连接真实 MCP 服务器）
  */
 export class McpServer implements IMcpServer {
   readonly name: string;
   readonly config: McpServerConfig;
   private _status: McpServerStatus;
   private tools: Map<string, IMcpTool> = new Map();
+  private stdioClient?: StdioMcpClient;
 
   constructor(config: McpServerConfig & { initialStatus?: McpServerStatus }) {
     this.name = config.name;
@@ -227,7 +333,8 @@ export class McpServer implements IMcpServer {
 
   /**
    * 连接到 MCP 服务器
-   * 本地服务器直接设置为已连接状态
+   * - stdio 类型：通过 StdioMcpClient 启动子进程并完成握手，拉取远程工具
+   * - local/其他类型：直接设置为已连接状态
    */
   async connect(): Promise<void> {
     if (this._status === McpServerStatus.CONNECTED) {
@@ -236,11 +343,40 @@ export class McpServer implements IMcpServer {
 
     this._status = McpServerStatus.CONNECTING;
 
-    // 模拟连接延迟
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    try {
+      if (this.config.type === 'stdio' && this.config.command) {
+        await this.connectStdio();
+      } else {
+        // 本地服务器：模拟连接延迟
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
 
-    this._status = McpServerStatus.CONNECTED;
-    globalEventBus.emit('mcp.server_connected', this.name, now());
+      this._status = McpServerStatus.CONNECTED;
+      globalEventBus.emit('mcp.server_connected', this.name, now());
+    } catch (error) {
+      this._status = McpServerStatus.ERROR;
+      // 清理可能已创建的 stdio 客户端
+      if (this.stdioClient) {
+        await this.stdioClient.close().catch(() => {});
+        this.stdioClient = undefined;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 通过 stdio 连接真实 MCP 服务器
+   */
+  private async connectStdio(): Promise<void> {
+    this.stdioClient = new StdioMcpClient(this.config);
+    await this.stdioClient.connect();
+
+    // 拉取远程工具列表并注册为本地工具
+    const remoteTools = await this.stdioClient.listTools();
+    for (const toolInfo of remoteTools) {
+      const tool = new RemoteMcpTool(this.stdioClient, this.name, toolInfo);
+      this.tools.set(tool.name, tool);
+    }
   }
 
   /**
@@ -249,6 +385,12 @@ export class McpServer implements IMcpServer {
   async disconnect(): Promise<void> {
     if (this._status === McpServerStatus.DISCONNECTED) {
       return;
+    }
+
+    // 关闭 stdio 客户端（如有）
+    if (this.stdioClient) {
+      await this.stdioClient.close().catch(() => {});
+      this.stdioClient = undefined;
     }
 
     this._status = McpServerStatus.DISCONNECTED;
@@ -458,6 +600,7 @@ export class McpManager implements IMcpManager {
 
   /**
    * 创建计算工具
+   * 使用安全的递归下降解析器替代 eval，避免代码注入风险
    */
   private createCalculateTool(): IMcpTool {
     return new McpTool(
@@ -476,14 +619,7 @@ export class McpManager implements IMcpManager {
         const expression = args.expression as string;
 
         try {
-          // 安全的简单计算（只支持基本运算）
-          // 注意：实际生产环境应该使用更安全的方式
-          if (!/^[\d\s+\-*/().%]+$/.test(expression)) {
-            throw new Error('表达式包含非法字符');
-          }
-
-          // eslint-disable-next-line no-eval
-          const result = eval(expression);
+          const result = safeEvalMath(expression);
 
           return {
             success: true,

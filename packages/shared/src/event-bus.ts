@@ -128,6 +128,49 @@ export interface GlobalEvents {
   'scheduler.task_cancelled': [taskId: string, agentId: string, timestamp: number];
   'scheduler.task_executed': [taskId: string, agentId: string, timestamp: number];
   'scheduler.task_error': [taskId: string, agentId: string, error: Error, timestamp: number];
+
+  // A2A 通信事件
+  'a2a.agent_registered': [agentId: string, timestamp: number];
+  'a2a.agent_unregistered': [agentId: string, timestamp: number];
+  'a2a.message_sent': [messageId: string, from: string, to: string, timestamp: number];
+  'a2a.message_received': [messageId: string, from: string, to: string, timestamp: number];
+
+  // 沙箱事件
+  'sandbox.permission_checked': [
+    skillId: string,
+    permission: string,
+    resource: string | undefined,
+    allowed: boolean,
+    timestamp: number
+  ];
+  'sandbox.audit_logged': [auditId: string, action: string, result: string, timestamp: number];
+  'sandbox.skill_executed': [skillId: string, agentId: string | undefined, duration: number, timestamp: number];
+  'sandbox.skill_blocked': [
+    skillId: string,
+    agentId: string | undefined,
+    reason: string,
+    timestamp: number
+  ];
+
+  // 工作流事件
+  'workflow.started': [workflowId: string, executionId: string, timestamp: number];
+  'workflow.node_started': [workflowId: string, executionId: string, nodeId: string, timestamp: number];
+  'workflow.node_completed': [
+    workflowId: string,
+    executionId: string,
+    nodeId: string,
+    status: string,
+    duration: number,
+    timestamp: number
+  ];
+  'workflow.completed': [
+    workflowId: string,
+    executionId: string,
+    status: string,
+    duration: number,
+    timestamp: number
+  ];
+  'workflow.error': [workflowId: string, executionId: string, error: Error, timestamp: number];
 }
 
 /**

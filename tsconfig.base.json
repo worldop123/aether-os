@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
     "declaration": true,
     "declarationMap": true,
@@ -22,7 +22,11 @@
       "@aether/memory": ["../memory/src"],
       "@aether/model-router": ["../model-router/src"],
       "@aether/mcp": ["../mcp/src"],
-      "@aether/scheduler": ["../scheduler/src"]
+      "@aether/scheduler": ["../scheduler/src"],
+      "@aether/a2a": ["../a2a/src"],
+      "@aether/sandbox": ["../sandbox/src"],
+      "@aether/workflow": ["../workflow/src"],
+      "@aether/web": ["../web/src"]
     }
   },
   "exclude": ["node_modules", "dist"]

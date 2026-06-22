@@ -9,7 +9,8 @@
       "@aether/memory": ["../memory/src"],
       "@aether/model-router": ["../model-router/src"],
       "@aether/mcp": ["../mcp/src"],
-      "@aether/scheduler": ["../scheduler/src"]
+      "@aether/scheduler": ["../scheduler/src"],
+      "@aether/web": ["../web/src"]
     }
   },
   "include": ["src/**/*"],

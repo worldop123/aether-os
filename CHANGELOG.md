@@ -1,0 +1,138 @@
+# 变更日志
+
+本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
+
+## [0.2.0] - 2026-06-22
+
+### 重大变更
+
+- **CLI ESM 修复**：tsconfig 从 `moduleResolution: "bundler"` 改为 `NodeNext`，所有相对 import 必须带 `.js` 扩展名
+- **better-sqlite3 升级**：从 9.4.0 升级到 12.2.0，支持 Node.js 18-24+
+- **LongTermMemory 接口**：`store` 方法新增可选 `embedding` 参数
+
+### 新增功能
+
+#### P0 - 让 MVP 真正可用
+
+- **feat(model-router)**: 添加真实模型提供商
+  - `OpenAIProvider` - 支持 GPT-4/GPT-3.5-turbo/GPT-4o 的 chat 和 embedding
+  - `AnthropicProvider` - 支持 Claude-3 系列 chat（不支持 embedding）
+  - `OllamaProvider` - 本地模型提供商，支持 chat 和 embedding
+- **feat(memory)**: 实现 SQLite 持久化
+  - 新增 `SqliteLongTermMemory` 类，基于 better-sqlite3
+  - 支持向量存储和余弦相似度检索
+  - 关键词匹配降级方案
+- **feat(scheduler)**: TaskScheduler 支持持久化
+  - 新增 `setPersistence()` 方法
+  - 任务创建、取消、执行后自动持久化
+  - 启动时从持久化加载任务
+- **feat(mcp)**: 接入真实 MCP 服务器
+  - 新增 `StdioMcpClient` 类，通过子进程启动 MCP 服务器
+  - 支持 JSON-RPC 2.0 over stdio 通信
+  - 新增 `RemoteMcpTool` 包装远程工具
+  - McpServer 支持 stdio 类型连接
+
+#### P1 - 提升体验和功能
+
+- **feat(memory)**: 实现真正的向量记忆检索
+  - 新增 `vector.ts` 模块（cosineSimilarity、vectorNorm、dotProduct、normalizeVector、hashEmbedding）
+  - `LongTermMemory` 支持注入 `embeddingFn` 自动生成向量
+  - 新增 `VectorMemoryManager` 装饰器，集成 IModelProvider
+- **feat(cli)**: 完善 CLI 功能
+  - 新增 `colors.ts` 彩色输出模块（ANSI 颜色码，TTY 自动检测）
+  - 新增 `progress.ts` 进度指示器（Spinner + ProgressBar）
+  - 新增 `config.ts` 配置文件支持（`~/.aether/config.json`）
+  - 新增 `interactive.ts` 交互式 REPL 模式
+  - 新增 `config` 命令（list/get/set/path）
+  - 新增 `web` 命令启动 Web UI
+  - `chat` 命令支持 `-i`/`--interactive` 进入交互模式
+- **feat(examples)**: 添加 3 个完整示例
+  - `monitor-agent-demo.ts` - 后台监控 Agent
+  - `memory-system-demo.ts` - 记忆系统完整示例
+  - `custom-skill-demo.ts` - 自定义 Skill 示例
+
+#### P2 - Phase 2 功能
+
+- **feat(a2a)**: 新增 Agent 间通信包 `@aether/a2a`
+  - `AgentCard` / `AgentRegistry` - Agent 发现与注册
+  - `LocalA2AChannel` - 本地消息通道（单播/广播/请求-响应）
+  - `A2AProtocol` - 高层协议（request/respond/notify/broadcast/queryCapabilities）
+  - 心跳检测和超时清理
+- **feat(sandbox)**: 新增安全沙箱包 `@aether/sandbox`
+  - 14 种权限类型（fs/net/process/memory/mcp/a2a/time/random）
+  - `PermissionController` 权限控制器（规则匹配 + 资源限制）
+  - `AuditLogger` 审计日志（内存存储，FIFO 淘汰）
+  - `VmSandbox` 基于 node:vm 的代码隔离执行
+  - `SkillSandbox` 高层封装
+- **feat(workflow)**: 新增工作流编排包 `@aether/workflow`
+  - `DagGraph` DAG 图结构（拓扑排序、环检测、可达性验证）
+  - 5 种节点类型（task/condition/parallel/loop/delay）
+  - `WorkflowExecutor` 执行器（重试、超时、fallback、取消）
+  - `WorkflowBuilder` 流式 API
+- **feat(web)**: 新增 Web UI 包 `@aether/web`
+  - 20 个 REST API 端点
+  - SSE 事件流推送
+  - 单页管理界面（Dashboard/Agents/Memories/Budget/MCP/Schedules）
+  - 暗色主题支持
+
+### 修复
+
+- **fix(scheduler)**: 修复 7 个 SqlitePersistence 测试失败问题（better-sqlite3 升级解决）
+- **fix(mcp)**: 替换 `calculate` 工具的 `eval` 实现为安全的递归下降解析器，杜绝代码注入风险
+- **fix(scheduler)**: 完善 `parseCron` 支持完整 5 字段语法（minute hour day-of-month month day-of-week）
+  - 支持范围 `1-5`
+  - 支持列表 `1,3,5`
+  - 支持步长 `*/15`、`1-23/2`
+  - 支持 dayOfMonth 和 dayOfWeek 的 OR 关系
+- **fix(cli)**: 修复 ESM 模块解析问题，CLI 可直接运行
+- **fix(docs)**: 修正 README 中"长期向量记忆"的描述为"关键词匹配（MVP）"
+
+### 测试
+
+- 测试数量从 314 增加到 **735**（全部通过）
+- 测试文件从 11 个增加到 **25 个**
+- 新增测试覆盖：
+  - 模型提供商（43 个）
+  - SQLite 持久化（40 个）
+  - MCP stdio 客户端（17 个）
+  - 向量检索（62 个）
+  - CLI 新功能（67 个）
+  - A2A 通信（41 个）
+  - 安全沙箱（48 个）
+  - 工作流编排（50 个）
+  - Web UI（26 个）
+  - Cron 解析器（19 个）
+
+### 文档
+
+- **docs**: 重写 README 为完整的开源文档
+- **docs**: 新增 CONTRIBUTING.md 贡献指南
+- **docs**: 新增 ARCHITECTURE.md 架构文档
+- **docs**: 新增 CHANGELOG.md 变更日志
+- **docs**: 新增 GitHub Issue 模板和 PR 模板
+
+### 基础设施
+
+- **chore**: 升级 better-sqlite3 到 ^12.2.0
+- **chore**: tsconfig.base.json 改用 NodeNext 模块解析
+- **chore**: 添加 @aether/a2a、@aether/sandbox、@aether/workflow、@aether/web 路径映射
+- **chore**: 更新 .gitignore
+
+## [0.1.0] - 2026-06-20
+
+### 初始发布
+
+- 7 个核心包：shared、core、memory、model-router、mcp、scheduler、cli
+- 314 个测试用例
+- 基础文档：README、架构文档、快速开始、API 文档
+- 4 个示例代码
+
+### 已知限制
+
+- CLI 直接运行有 ESM 模块解析问题
+- 长期记忆用关键词匹配，不是真向量检索
+- 只有 Mock 模型提供商，没有接真实 LLM
+- 只有内存存储，没有 SQLite 持久化
+- MCP 只有内置工具，不能连接外部 MCP 服务器
+- `calculate` 工具使用 `eval`（有正则白名单，仍有安全隐患）
+- `parseCron` 仅支持 minute/hour 两字段

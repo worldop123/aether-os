@@ -17,10 +17,12 @@
   },
   "dependencies": {
     "@aether/shared": "workspace:*",
-    "better-sqlite3": "^9.4.0"
+    "@aether/model-router": "workspace:*",
+    "better-sqlite3": "^12.2.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
-    "@types/node": "^20.12.0"
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20.12.0",
+    "typescript": "^5.4.0"
   }
 }

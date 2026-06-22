@@ -4,7 +4,7 @@
  * 包含定时任务调度和数据持久化的接口定义
  */
 
-export { TaskStatus, ScheduledTask, TaskScheduler, SqlitePersistence } from './scheduler';
+export { TaskStatus, ScheduledTask, TaskScheduler, SqlitePersistence, parseCron, calculateNextRun } from './scheduler.js';
 export type {
   TaskType,
   IScheduledTask,
@@ -13,4 +13,4 @@ export type {
   ITaskScheduler,
   AgentStateData,
   IPersistence,
-} from './scheduler';
+} from './scheduler.js';

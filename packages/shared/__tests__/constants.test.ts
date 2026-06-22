@@ -40,6 +40,28 @@ describe('常量测试', () => {
       expect(EVENTS.SCHEDULER_TASK_EXECUTED).toBe('scheduler.task_executed');
       expect(EVENTS.SCHEDULER_TASK_ERROR).toBe('scheduler.task_error');
     });
+
+    it('应该包含 A2A 通信事件', () => {
+      expect(EVENTS.A2A_AGENT_REGISTERED).toBe('a2a.agent_registered');
+      expect(EVENTS.A2A_AGENT_UNREGISTERED).toBe('a2a.agent_unregistered');
+      expect(EVENTS.A2A_MESSAGE_SENT).toBe('a2a.message_sent');
+      expect(EVENTS.A2A_MESSAGE_RECEIVED).toBe('a2a.message_received');
+    });
+
+    it('应该包含沙箱事件', () => {
+      expect(EVENTS.SANDBOX_PERMISSION_CHECKED).toBe('sandbox.permission_checked');
+      expect(EVENTS.SANDBOX_AUDIT_LOGGED).toBe('sandbox.audit_logged');
+      expect(EVENTS.SANDBOX_SKILL_EXECUTED).toBe('sandbox.skill_executed');
+      expect(EVENTS.SANDBOX_SKILL_BLOCKED).toBe('sandbox.skill_blocked');
+    });
+
+    it('应该包含工作流事件', () => {
+      expect(EVENTS.WORKFLOW_STARTED).toBe('workflow.started');
+      expect(EVENTS.WORKFLOW_NODE_STARTED).toBe('workflow.node_started');
+      expect(EVENTS.WORKFLOW_NODE_COMPLETED).toBe('workflow.node_completed');
+      expect(EVENTS.WORKFLOW_COMPLETED).toBe('workflow.completed');
+      expect(EVENTS.WORKFLOW_ERROR).toBe('workflow.error');
+    });
   });
 
   describe('AGENT_STATUS 状态常量', () => {

@@ -420,6 +420,49 @@ describe('McpManager 测试', () => {
       expect(result.content).toContain('7');
     });
 
+    it('calculate 工具应该支持括号和优先级', async () => {
+      const result = await manager.executeTool('calculate', { expression: '(1 + 2) * 3' });
+      expect(result.success).toBe(true);
+      expect(result.content).toContain('9');
+    });
+
+    it('calculate 工具应该支持除法和取模', async () => {
+      const r1 = await manager.executeTool('calculate', { expression: '10 / 4' });
+      expect(r1.success).toBe(true);
+      expect(r1.content).toContain('2.5');
+
+      const r2 = await manager.executeTool('calculate', { expression: '10 % 3' });
+      expect(r2.success).toBe(true);
+      expect(r2.content).toContain('1');
+    });
+
+    it('calculate 工具应该支持负数', async () => {
+      const result = await manager.executeTool('calculate', { expression: '-5 + 3' });
+      expect(result.success).toBe(true);
+      expect(result.content).toContain('-2');
+    });
+
+    it('calculate 工具应该拒绝代码注入尝试', async () => {
+      const maliciousInputs = [
+        "require('child_process').exec('rm -rf /')",
+        'process.exit(0)',
+        '(() => { while(true){} })()',
+        '1; console.log("hacked")',
+        '1 + Math.pow(2, 10)',
+      ];
+      for (const input of maliciousInputs) {
+        const result = await manager.executeTool('calculate', { expression: input });
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('计算失败');
+      }
+    });
+
+    it('calculate 工具应该处理除零错误', async () => {
+      const result = await manager.executeTool('calculate', { expression: '1 / 0' });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('除零');
+    });
+
     it('应该能够执行 get_current_time 工具', async () => {
       const result = await manager.executeTool('get_current_time', {});
       expect(result.success).toBe(true);
