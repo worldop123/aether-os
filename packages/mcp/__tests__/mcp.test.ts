@@ -45,7 +45,7 @@ describe('McpTool 测试', () => {
         [],
         'test-server',
         async () => {
-          await new Promise((resolve) => setTimeout(resolve, 10));
+          await new Promise((resolve) => setTimeout(resolve, 20));
           return { success: true, content: 'ok' };
         }
       );
