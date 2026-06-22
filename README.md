@@ -7,10 +7,12 @@
 **让 AI Agent 从"一次性的对话程序"变成"24 小时在线的数字员工"**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/worldop123/aether-os/actions/workflows/ci.yml/badge.svg)](https://github.com/worldop123/aether-os/actions/workflows/ci.yml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-green.svg)](https://nodejs.org/)
 [![Tests](https://img.shields.io/badge/tests-735%20passed-brightgreen.svg)](#测试)
 [![Packages](https://img.shields.io/badge/packages-11-blue.svg)](#包结构)
+[![Discussions](https://img.shields.io/badge/Discussions-welcome-9cf.svg)](https://github.com/worldop123/aether-os/discussions)
 
 </div>
 
