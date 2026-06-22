@@ -1,0 +1,31 @@
+{
+  "name": "Aether OS Discussions",
+  "description": "Aether OS 社区讨论",
+  "categories": [
+    {
+      "name": "Announcements",
+      "emoji": "📣",
+      "description": "项目公告和更新通知"
+    },
+    {
+      "name": "Ideas",
+      "emoji": "💡",
+      "description": "新功能想法和建议"
+    },
+    {
+      "name": "Q&A",
+      "emoji": "❓",
+      "description": "使用问题和解答"
+    },
+    {
+      "name": "Show and tell",
+      "emoji": "🎉",
+      "description": "展示你用 Aether OS 构建的项目"
+    },
+    {
+      "name": "General",
+      "emoji": "💬",
+      "description": "其他讨论"
+    }
+  ]
+}

@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+# 同一分支的新推送取消旧的运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: 测试 (${{ matrix.os }} / Node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        node-version: [18, 20, 22]
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: 设置 Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      - name: 安装依赖
+        run: pnpm install --no-frozen-lockfile
+
+      - name: 构建所有包
+        run: pnpm build
+
+      - name: 运行所有测试
+        run: pnpm test
+
+      - name: 上传测试覆盖率
+        if: matrix.node-version == 20
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}-${{ matrix.node-version }}
+          path: |
+            coverage/
+            test-results/
+          retention-days: 7
+
+  lint:
+    name: 类型检查
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 安装依赖
+        run: pnpm install --no-frozen-lockfile
+
+      - name: TypeScript 类型检查
+        run: pnpm build
+
+      - name: 验证 CLI 可运行
+        run: node packages/cli/dist/cli.js --version
+
+  build-check:
+    name: 构建验证
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 安装依赖
+        run: pnpm install --no-frozen-lockfile
+
+      - name: 构建所有包
+        run: pnpm build
+
+      - name: 验证构建产物
+        run: |
+          echo "=== 验证所有包构建产物存在 ==="
+          for pkg in shared core memory model-router mcp scheduler cli a2a sandbox workflow web; do
+            if [ -f "packages/$pkg/dist/index.js" ]; then
+              echo "✅ @aether/$pkg 构建成功"
+            else
+              echo "❌ @aether/$pkg 构建失败"
+              exit 1
+            fi
+          done
+          echo "=== 所有包构建验证通过 ==="

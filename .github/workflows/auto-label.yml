@@ -1,0 +1,68 @@
+name: 自动标签
+
+on:
+  issues:
+    types: [opened, edited]
+  pull_request:
+    types: [opened, edited]
+
+jobs:
+  label:
+    name: 自动添加标签
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: 根据 Issue 标题添加标签
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue || context.payload.pull_request;
+            if (!issue) return;
+
+            const title = issue.title.toLowerCase();
+            const body = (issue.body || '').toLowerCase();
+            const labels = [];
+
+            // Bug 报告
+            if (title.includes('[bug]') || title.includes('bug:') || title.includes('错误') || title.includes('失败')) {
+              labels.push('bug');
+            }
+
+            // 功能请求
+            if (title.includes('[feature]') || title.includes('feat:') || title.includes('功能') || title.includes('建议')) {
+              labels.push('enhancement');
+            }
+
+            // 文档
+            if (title.includes('[docs]') || title.includes('文档') || title.includes('readme')) {
+              labels.push('documentation');
+            }
+
+            // 根据涉及的包添加标签
+            const packages = ['shared', 'core', 'memory', 'model-router', 'mcp', 'scheduler', 'cli', 'a2a', 'sandbox', 'workflow', 'web'];
+            for (const pkg of packages) {
+              if (body.includes(`@aether/${pkg}`) || body.includes(`packages/${pkg}`)) {
+                labels.push(`pkg:${pkg}`);
+              }
+            }
+
+            // 优先级
+            if (title.includes('p0') || title.includes('紧急') || title.includes('critical')) {
+              labels.push('priority:high');
+            } else if (title.includes('p1') || title.includes('重要')) {
+              labels.push('priority:medium');
+            } else {
+              labels.push('priority:low');
+            }
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: labels
+              });
+            }

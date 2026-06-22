@@ -1,0 +1,40 @@
+# CODEOWNERS 文件
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# 每个条目格式：pattern @username 或 @team
+# 最后匹配的 pattern 生效
+
+# 默认所有者
+*                           @worldop123
+
+# 核心包
+packages/core/              @worldop123
+packages/shared/            @worldop123
+packages/memory/            @worldop123
+packages/model-router/      @worldop123
+packages/mcp/               @worldop123
+packages/scheduler/         @worldop123
+
+# CLI 和 Web
+packages/cli/               @worldop123
+packages/web/               @worldop123
+
+# 高级功能
+packages/a2a/               @worldop123
+packages/sandbox/           @worldop123
+packages/workflow/          @worldop123
+
+# 文档
+*.md                        @worldop123
+/docs/                      @worldop123
+
+# CI/CD 和配置
+/.github/                   @worldop123
+package.json                @worldop123
+pnpm-workspace.yaml         @worldop123
+tsconfig.base.json          @worldop123
+vitest.config.ts            @worldop123
+
+# 安全相关（需要额外审查）
+packages/sandbox/           @worldop123
+SECURITY.md                 @worldop123

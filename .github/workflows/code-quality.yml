@@ -1,0 +1,88 @@
+name: 代码质量
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 每周一 UTC 00:00 运行
+    - cron: '0 0 * * 1'
+
+jobs:
+  quality:
+    name: 代码质量检查
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 安装依赖
+        run: pnpm install --no-frozen-lockfile
+
+      - name: 检查包结构完整性
+        run: |
+          echo "=== 检查所有包的 package.json ==="
+          for pkg in shared core memory model-router mcp scheduler cli a2a sandbox workflow web; do
+            if [ ! -f "packages/$pkg/package.json" ]; then
+              echo "❌ 缺少 packages/$pkg/package.json"
+              exit 1
+            fi
+            if [ ! -f "packages/$pkg/tsconfig.json" ]; then
+              echo "❌ 缺少 packages/$pkg/tsconfig.json"
+              exit 1
+            fi
+            if [ ! -f "packages/$pkg/src/index.ts" ]; then
+              echo "❌ 缺少 packages/$pkg/src/index.ts"
+              exit 1
+            fi
+            echo "✅ @aether/$pkg 结构完整"
+          done
+
+      - name: 检查 ESM 规范
+        run: |
+          echo "=== 检查相对 import 是否带 .js 扩展名 ==="
+          # 查找所有 src 目录下不带 .js 扩展名的相对 import
+          violations=$(find packages -path "*/src/*.ts" -exec grep -l "from '\./[^']*[^.js]'" {} \; 2>/dev/null || true)
+          if [ -n "$violations" ]; then
+            echo "❌ 以下文件的相对 import 缺少 .js 扩展名："
+            echo "$violations"
+            exit 1
+          fi
+          echo "✅ 所有相对 import 符合 ESM 规范"
+
+      - name: 检查测试文件
+        run: |
+          echo "=== 检查每个包是否有测试 ==="
+          for pkg in shared core memory model-router mcp scheduler cli a2a sandbox workflow web; do
+            if [ -d "packages/$pkg/__tests__" ]; then
+              test_count=$(find "packages/$pkg/__tests__" -name "*.test.ts" | wc -l)
+              if [ "$test_count" -gt 0 ]; then
+                echo "✅ @aether/$pkg 有 $test_count 个测试文件"
+              else
+                echo "⚠️  @aether/$pkg 没有测试文件"
+              fi
+            else
+              echo "⚠️  @aether/$pkg 没有 __tests__ 目录"
+            fi
+          done
+
+      - name: 统计代码行数
+        run: |
+          echo "=== 代码统计 ==="
+          echo "源代码行数: $(find packages -path "*/src/*.ts" -exec cat {} + | wc -l)"
+          echo "测试代码行数: $(find packages -path "*/__tests__/*.ts" -exec cat {} + | wc -l)"
+          echo "包数量: $(ls packages/ | wc -l)"
+          echo "测试文件数: $(find packages -name "*.test.ts" | wc -l)"
