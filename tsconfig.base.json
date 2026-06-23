@@ -14,20 +14,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "outDir": "./dist",
-    "rootDir": "./src",
-    "baseUrl": ".",
-    "paths": {
-      "@aether/shared": ["../shared/src"],
-      "@aether/core": ["../core/src"],
-      "@aether/memory": ["../memory/src"],
-      "@aether/model-router": ["../model-router/src"],
-      "@aether/mcp": ["../mcp/src"],
-      "@aether/scheduler": ["../scheduler/src"],
-      "@aether/a2a": ["../a2a/src"],
-      "@aether/sandbox": ["../sandbox/src"],
-      "@aether/workflow": ["../workflow/src"],
-      "@aether/web": ["../web/src"]
-    }
+    "rootDir": "./src"
   },
   "exclude": ["node_modules", "dist"]
 }
