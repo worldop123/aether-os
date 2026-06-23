@@ -4,10 +4,7 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "paths": {
-      "@aether/shared": ["../shared/src"],
-      "@aether/memory": ["../memory/src"],
-      "@aether/model-router": ["../model-router/src"],
-      "@aether/mcp": ["../mcp/src"]
+      "@aether/shared": ["../shared/src"]
     }
   },
   "include": ["src/**/*"],

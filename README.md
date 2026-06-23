@@ -10,8 +10,8 @@
 [![CI](https://github.com/worldop123/aether-os/actions/workflows/ci.yml/badge.svg)](https://github.com/worldop123/aether-os/actions/workflows/ci.yml)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-green.svg)](https://nodejs.org/)
-[![Tests](https://img.shields.io/badge/tests-735%20passed-brightgreen.svg)](#测试)
-[![Packages](https://img.shields.io/badge/packages-11-blue.svg)](#包结构)
+[![Tests](https://img.shields.io/badge/tests-827%20passed-brightgreen.svg)](#测试)
+[![Packages](https://img.shields.io/badge/packages-13-blue.svg)](#包结构)
 [![Discussions](https://img.shields.io/badge/Discussions-welcome-9cf.svg)](https://github.com/worldop123/aether-os/discussions)
 
 </div>
@@ -62,8 +62,13 @@ Aether OS 是一个面向 AI Agent 的有状态运行时操作系统。它管理
 ### 高级功能
 
 - **Agent 间通信（A2A）** - Agent 发现、消息传递、请求-响应模式
+  - 本地进程内通信（LocalA2AChannel）
+  - 跨进程 HTTP 通信（HttpA2AChannel）
 - **安全沙箱** - 基于 node:vm 的代码隔离 + 14 种权限控制 + 审计日志
 - **工作流编排** - DAG 式工作流，支持条件分支、并行执行、循环、重试
+- **技能系统** - 5 个内置技能（代码助手、文档撰写、数据分析等），支持自定义技能
+- **可观测性** - 日志聚合、指标收集（Counter/Gauge/Histogram）、链路追踪
+- **记忆巩固与遗忘** - 自动将重要短期记忆巩固到长期记忆，自动遗忘不重要记忆
 - **Web UI** - 可视化管理界面，REST API + SSE 事件流
 - **CLI 工具** - 彩色输出、进度条、交互模式、配置文件
 
@@ -147,18 +152,20 @@ console.log(results);
 
 ## 包结构
 
-Aether OS 采用 monorepo 架构，包含 11 个包：
+Aether OS 采用 monorepo 架构，包含 13 个包：
 
 | 包 | 说明 | 状态 |
 |---|---|---|
 | [@aether/shared](./packages/shared) | 共享模块（常量、错误类、事件总线、工具函数） | ✅ 稳定 |
-| [@aether/core](./packages/core) | 核心模块（Agent 类、ProcessManager） | ✅ 稳定 |
-| [@aether/memory](./packages/memory) | 记忆系统（短期记忆、长期记忆、向量检索） | ✅ 稳定 |
+| [@aether/core](./packages/core) | 核心模块（Agent 类、ProcessManager、AgentRuntime） | ✅ 稳定 |
+| [@aether/memory](./packages/memory) | 记忆系统（短期/长期记忆、向量检索、巩固与遗忘） | ✅ 稳定 |
 | [@aether/model-router](./packages/model-router) | 模型路由（OpenAI/Anthropic/Ollama + 预算控制） | ✅ 稳定 |
 | [@aether/mcp](./packages/mcp) | MCP 工具系统（内置工具 + stdio 客户端） | ✅ 稳定 |
 | [@aether/scheduler](./packages/scheduler) | 任务调度（完整 cron + SQLite 持久化） | ✅ 稳定 |
 | [@aether/cli](./packages/cli) | 命令行工具（彩色输出 + 交互模式） | ✅ 稳定 |
-| [@aether/a2a](./packages/a2a) | Agent 间通信（发现 + 消息传递） | 🚧 实验性 |
+| [@aether/skills](./packages/skills) | 技能系统（5 个内置技能 + 自定义技能） | 🚧 实验性 |
+| [@aether/observability](./packages/observability) | 可观测性（日志 + 指标 + 链路追踪） | 🚧 实验性 |
+| [@aether/a2a](./packages/a2a) | Agent 间通信（本地 + HTTP 跨进程） | 🚧 实验性 |
 | [@aether/sandbox](./packages/sandbox) | 安全沙箱（权限控制 + 审计日志） | 🚧 实验性 |
 | [@aether/workflow](./packages/workflow) | 工作流编排（DAG + 条件分支 + 并行） | 🚧 实验性 |
 | [@aether/web](./packages/web) | Web UI（REST API + 管理界面） | 🚧 实验性 |

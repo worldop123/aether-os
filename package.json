@@ -1,6 +1,6 @@
 {
   "name": "aether-os",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Aether OS - 下一代 AI Agent 操作系统",
   "scripts": {

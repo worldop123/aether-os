@@ -2,6 +2,101 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
+## [0.3.0] - 2026-06-23
+
+### 重大变更
+
+- **Agent 运行时**：新增 `AgentRuntime` 类，`sendMessage` 不再是 echo，而是真正集成 Memory + ModelRouter + MCP 的工具调用循环
+- **MemoryMessage 类型扩展**：新增 `toolCalls` 字段，支持助手消息携带工具调用信息
+- **LongTermMemoryItem 类型扩展**：`type` 字段新增 `summary` 类型
+
+### 新增功能
+
+#### P3.1 - Agent 核心能力增强
+
+- **feat(core)**: 新增 `AgentRuntime` 类
+  - 真正集成 MemoryManager、ModelRouter、MCP 工具系统
+  - 实现完整的工具调用循环（tool call loop）
+  - 支持预算检查和 token 使用跟踪
+  - 支持系统提示词
+  - 最大工具调用循环次数限制（默认 10）
+  - 无模型路由器时回退到 echo 模式
+- **feat(core)**: 新增 `AgentRuntimeManager` 管理多个运行时
+  - 自动创建运行时
+  - 统一的消息发送接口
+
+#### P3.2 - 技能系统
+
+- **feat(skills)**: 新增 `@aether/skills` 包
+  - `SkillManager` 技能管理器
+  - 5 个内置技能：代码助手、技术文档撰写、数据分析、任务自动化、研究助手
+  - 技能注册、注销、搜索
+  - 技能加载到 Agent
+  - 组合系统提示词构建
+  - 工具需求聚合
+
+#### P3.3 - 可观测性
+
+- **feat(observability)**: 新增 `@aether/observability` 包
+  - **日志系统**：Logger、LogManager、ConsoleLogAppender、MemoryLogAppender
+    - 5 个日志级别（DEBUG/INFO/WARN/ERROR/FATAL）
+    - 多输出器支持
+    - 子日志记录器
+    - 按 Agent/Trace 过滤
+    - FIFO 淘汰
+  - **指标系统**：Counter、Gauge、Histogram、MetricsRegistry
+    - 标签支持
+    - 分位数计算
+    - Prometheus 格式导出
+  - **链路追踪**：Tracer、Span、TraceContext
+    - 父子跨度
+    - 标签和日志事件
+    - `traced` 装饰器自动追踪
+
+#### P3.4 - A2A HTTP 传输层
+
+- **feat(a2a)**: 新增 `HttpA2AChannel` 类
+  - 基于 HTTP 协议的跨进程/跨机器 Agent 通信
+  - 内置 HTTP 服务器接收消息
+  - 支持单播和广播
+  - 远程端点注册管理
+  - 请求超时控制
+  - `createHttpChannel` 工厂函数
+
+#### P3.5 - 记忆巩固与遗忘
+
+- **feat(memory)**: 新增记忆巩固与遗忘机制
+  - `MemoryConsolidator` 记忆巩固器
+    - 4 种巩固策略（importance/recency/frequency/hybrid）
+    - 重要性评分计算
+    - 自动摘要生成
+    - 重要性阈值过滤
+  - `MemoryForgetter` 记忆遗忘器
+    - 5 种遗忘策略（fifo/lru/lfu/decay/importance-based）
+    - 保留分数计算
+    - 最大记忆数量限制
+    - 过期记忆清理
+  - `MemoryMaintenance` 定期维护管理器
+    - 定期自动执行巩固和遗忘
+    - 可配置维护间隔
+
+### 测试
+
+- 测试数量从 735 增加到 **827**（全部通过）
+- 测试文件从 25 个增加到 **30 个**
+- 新增测试覆盖：
+  - Agent 运行时（12 个）
+  - 技能系统（29 个）
+  - 可观测性（23 个）
+  - HTTP A2A 通道（10 个）
+  - 记忆巩固与遗忘（18 个）
+
+### 文档
+
+- **docs**: 更新 README 添加新包说明
+- **docs**: 更新 ARCHITECTURE 添加新模块架构图
+- **docs**: 更新 CHANGELOG
+
 ## [0.2.0] - 2026-06-22
 
 ### 重大变更

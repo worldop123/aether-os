@@ -1,5 +1,5 @@
 {
-  "name": "@aether/core",
+  "name": "@aether/observability",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -16,10 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@aether/shared": "workspace:*",
-    "@aether/memory": "workspace:*",
-    "@aether/model-router": "workspace:*",
-    "@aether/mcp": "workspace:*"
+    "@aether/shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

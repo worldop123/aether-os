@@ -41,6 +41,15 @@ export interface MemoryMessage {
   toolCallId?: string;
   /** 工具名称（仅 tool 角色） */
   toolName?: string;
+  /** 工具调用列表（仅 assistant 角色，当模型决定调用工具时） */
+  toolCalls?: Array<{
+    /** 调用 ID */
+    id: string;
+    /** 工具名称 */
+    name: string;
+    /** 工具参数 */
+    arguments: Record<string, unknown>;
+  }>;
 }
 
 /**
@@ -191,7 +200,7 @@ export interface LongTermMemoryItem {
   /** 向量嵌入（可选，MVP 阶段可简化） */
   embedding?: number[];
   /** 记忆类型 */
-  type: 'fact' | 'experience' | 'preference' | 'custom';
+  type: 'fact' | 'experience' | 'preference' | 'summary' | 'custom';
   /** 重要性评分 (0-1) */
   importance: number;
   /** 访问次数 */

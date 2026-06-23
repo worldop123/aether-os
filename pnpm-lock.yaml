@@ -67,6 +67,15 @@ importers:
 
   packages/core:
     dependencies:
+      '@aether/mcp':
+        specifier: workspace:*
+        version: link:../mcp
+      '@aether/memory':
+        specifier: workspace:*
+        version: link:../memory
+      '@aether/model-router':
+        specifier: workspace:*
+        version: link:../model-router
       '@aether/shared':
         specifier: workspace:*
         version: link:../shared
@@ -126,6 +135,19 @@ importers:
         specifier: ^5.4.0
         version: 5.9.3
 
+  packages/observability:
+    dependencies:
+      '@aether/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@types/node':
+        specifier: ^20.12.0
+        version: 20.19.43
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
   packages/sandbox:
     dependencies:
       '@aether/shared':
@@ -162,6 +184,19 @@ importers:
         version: 5.9.3
 
   packages/shared:
+    devDependencies:
+      '@types/node':
+        specifier: ^20.12.0
+        version: 20.19.43
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
+  packages/skills:
+    dependencies:
+      '@aether/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       '@types/node':
         specifier: ^20.12.0
