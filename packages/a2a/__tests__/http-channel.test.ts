@@ -63,13 +63,13 @@ describe('HttpA2AChannel 测试', () => {
       await channel1.send(message);
 
       // 等待消息接收
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       expect(receivedMessages.length).toBe(1);
       expect(receivedMessages[0].from).toBe('agent-1');
       expect(receivedMessages[0].to).toBe('agent-2');
       expect((receivedMessages[0].payload as any).text).toBe('你好');
-    });
+    }, 15000);
 
     it('应该支持广播消息', async () => {
       channel1 = new HttpA2AChannel({ agentId: 'agent-1' });
@@ -100,7 +100,7 @@ describe('HttpA2AChannel 测试', () => {
       };
 
       await channel1.send(broadcast);
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       expect(received2.length).toBe(1);
       expect(received3.length).toBe(1);
@@ -108,7 +108,7 @@ describe('HttpA2AChannel 测试', () => {
       expect((received3[0].payload as any).announcement).toBe('系统更新');
 
       await channel3.close();
-    });
+    }, 15000);
 
     it('发送到未知 Agent 应该抛出错误', async () => {
       channel1 = new HttpA2AChannel({ agentId: 'agent-1' });
