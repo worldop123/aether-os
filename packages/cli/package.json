@@ -28,7 +28,7 @@
     "@aether/web": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
+    "typescript": "^6.0.3",
     "@types/node": "^20.12.0"
   }
 }
